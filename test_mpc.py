@@ -4,23 +4,26 @@ import numpy as np
 import scipy as sp
 from scipy import sparse
 
+from mpc_preparations import cast_problem_to_qp
+
+
 def get_quadrocopter_system_variables():
     Ad = sparse.csc_matrix(
-            [
-                [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1, 0.0, 0.0, 0.0, 0.0],
-                [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1, 0.0, 0.0, 0.0],
-                [0.0488, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0016, 0.0, 0.0, 0.0992, 0.0, 0.0],
-                [0.0, -0.0488, 0.0, 0.0, 1.0, 0.0, 0.0, -0.0016, 0.0, 0.0, 0.0992, 0.0],
-                [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0992],
-                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0],
-                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-                [0.9734, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0488, 0.0, 0.0, 0.9846, 0.0, 0.0],
-                [0.0, -0.9734, 0.0, 0.0, 0.0, 0.0, 0.0, -0.0488, 0.0, 0.0, 0.9846, 0.0],
-                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.9846],
-            ]
-        )
+        [
+            [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1, 0.0, 0.0, 0.0],
+            [0.0488, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0016, 0.0, 0.0, 0.0992, 0.0, 0.0],
+            [0.0, -0.0488, 0.0, 0.0, 1.0, 0.0, 0.0, -0.0016, 0.0, 0.0, 0.0992, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0992],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.9734, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0488, 0.0, 0.0, 0.9846, 0.0, 0.0],
+            [0.0, -0.9734, 0.0, 0.0, 0.0, 0.0, 0.0, -0.0488, 0.0, 0.0, 0.9846, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.9846],
+        ]
+    )
     Bd = sparse.csc_matrix(
         [
             [0.0, -0.0726, 0.0, 0.0726],
@@ -77,16 +80,18 @@ def get_quadrocopter_system_variables():
     )
     return Ad, Bd, nx, nu, umin, umax, xmin, xmax
 
+
 class TestUnityAgent(unittest.TestCase):
     def test_base_implementation(self):
 
-
         # Discrete time model of a quadcopter
-        
+
         Ad, Bd, nx, nu, umin, umax, xmin, xmax = get_quadrocopter_system_variables()
 
         # Objective function
-        Q = sparse.diags([0.0, 0.0, 10.0, 10.0, 10.0, 10.0, 0.0, 0.0, 0.0, 5.0, 5.0, 5.0])
+        Q = sparse.diags(
+            [0.0, 0.0, 10.0, 10.0, 10.0, 10.0, 0.0, 0.0, 0.0, 5.0, 5.0, 5.0]
+        )
         QN = Q
         R = 0.1 * sparse.eye(4)
 
@@ -99,27 +104,9 @@ class TestUnityAgent(unittest.TestCase):
 
         # Cast MPC problem to a QP: x = (x(0),x(1),...,x(N),u(0),...,u(N-1))
         # - quadratic objective
-        P = sparse.block_diag(
-            [sparse.kron(sparse.eye(N), Q), QN, sparse.kron(sparse.eye(N), R)], format="csc"
+        P, q, A, l, u = cast_problem_to_qp(
+            Ad, Q, QN, N, R, xr, nx, nu, Bd, x0, xmin, xmax, umin, umax
         )
-        # - linear objective
-        q = np.hstack([np.kron(np.ones(N), -Q @ xr), -QN @ xr, np.zeros(N * nu)])
-        # - linear dynamics
-        Ax = sparse.kron(sparse.eye(N + 1), -sparse.eye(nx)) + sparse.kron(
-            sparse.eye(N + 1, k=-1), Ad
-        )
-        Bu = sparse.kron(sparse.vstack([sparse.csc_matrix((1, N)), sparse.eye(N)]), Bd)
-        Aeq = sparse.hstack([Ax, Bu])
-        leq = np.hstack([-x0, np.zeros(N * nx)])
-        ueq = leq
-        # - input and state constraints
-        Aineq = sparse.eye((N + 1) * nx + N * nu)
-        lineq = np.hstack([np.kron(np.ones(N + 1), xmin), np.kron(np.ones(N), umin)])
-        uineq = np.hstack([np.kron(np.ones(N + 1), xmax), np.kron(np.ones(N), umax)])
-        # - OSQP constraints
-        A = sparse.vstack([Aeq, Aineq], format="csc")
-        l = np.hstack([leq, lineq])
-        u = np.hstack([ueq, uineq])
 
         # Create an OSQP object
         prob = osqp.OSQP()
@@ -165,8 +152,11 @@ class TestUnityAgent(unittest.TestCase):
             prob.update(l=l, u=u)
             ctrls_.append(ctrl)
 
-        for i,val in enumerate(ctrls_):
-            assert np.allclose(ctrls_[i], expected_ctrls_[i]), f"not close {ctrls_[i]} and {expected_ctrls_[i]}"
+        for i, val in enumerate(ctrls_):
+            assert np.allclose(
+                ctrls_[i], expected_ctrls_[i]
+            ), f"not close {ctrls_[i]} and {expected_ctrls_[i]}"
+
 
 if __name__ == "__main__":
     unittest.main()
