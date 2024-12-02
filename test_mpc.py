@@ -4,7 +4,7 @@ import numpy as np
 import scipy as sp
 from scipy import sparse
 
-from mpc_preparations import cast_problem_to_qp
+from mpc_preparations import cast_problem_to_qp, LinearMpcController
 
 
 def get_quadrocopter_system_variables():
@@ -104,8 +104,15 @@ class TestUnityAgent(unittest.TestCase):
 
         # Cast MPC problem to a QP: x = (x(0),x(1),...,x(N),u(0),...,u(N-1))
         # - quadratic objective
-        P, q, A, l, u = cast_problem_to_qp(
-            Ad, Q, QN, N, R, xr, nx, nu, Bd, x0, xmin, xmax, umin, umax
+        P = sparse.block_diag(
+            [sparse.kron(sparse.eye(N), Q), QN, sparse.kron(sparse.eye(N), R)], format="csc"
+        )
+        # - linear objective
+
+        q = np.hstack([np.kron(np.ones(N), -Q @ xr), -QN @ xr, np.zeros(N * nu)])
+
+        A, l, u = cast_problem_to_qp(
+            Ad, N, nx, nu, Bd, x0, xmin, xmax, umin, umax
         )
 
         # Create an OSQP object
@@ -156,6 +163,64 @@ class TestUnityAgent(unittest.TestCase):
             assert np.allclose(
                 ctrls_[i], expected_ctrls_[i]
             ), f"not close {ctrls_[i]} and {expected_ctrls_[i]}"
+    
+    # @unittest.skip
+    def test_united_implementation(self):
+        nsim = 15
+        expected_ctrls_ = [
+            np.array([-0.99153499, 1.74841857, -0.99153499, 1.74841857]),
+            np.array([-0.99168608, 0.58148059, -0.99168608, 0.58148059]),
+            np.array([-0.42591469, 0.00833044, -0.42591469, 0.00833044]),
+            np.array([0.7501203, -0.7766365, 0.7501203, -0.7766365]),
+            np.array([0.82922446, -0.82112962, 0.82922446, -0.82112962]),
+            np.array([0.56016765, -0.55009931, 0.56016765, -0.55009931]),
+            np.array([0.27258902, -0.26342178, 0.27258902, -0.26342178]),
+            np.array([0.08073136, -0.07260389, 0.08073136, -0.07260389]),
+            np.array([-0.01117416, 0.0183611, -0.01117416, 0.0183611]),
+            np.array([-0.03711131, 0.04346485, -0.03711131, 0.04346485]),
+            np.array([-0.03181643, 0.03743305, -0.03181643, 0.03743305]),
+            np.array([-0.01799676, 0.02296192, -0.01799676, 0.02296192]),
+            np.array([-0.00628856, 0.01067782, -0.00628856, 0.01067782]),
+            np.array([0.00048928, 0.00339087, 0.00048928, 0.00339087]),
+            np.array([0.00314154, 0.00028857, 0.00314154, 0.00028857]),
+        ]
+        # Discrete time model of a quadcopter
+
+        Ad, Bd, nx, nu, umin, umax, xmin, xmax = get_quadrocopter_system_variables()
+
+        # Objective function
+        Q = sparse.diags(
+            [0.0, 0.0, 10.0, 10.0, 10.0, 10.0, 0.0, 0.0, 0.0, 5.0, 5.0, 5.0]
+        )
+        QN = Q
+        R = 0.1 * sparse.eye(4)
+
+        # Initial and reference states
+        x0 = np.zeros(12)
+        xr = np.array([0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+
+        # Prediction horizon
+        N = 10
+
+        P = sparse.block_diag(
+            [sparse.kron(sparse.eye(N), Q), QN, sparse.kron(sparse.eye(N), R)], format="csc"
+        )
+        # - linear objective
+
+        q = np.hstack([np.kron(np.ones(N), -Q @ xr), -QN @ xr, np.zeros(N * nu)])
+
+
+        controller = LinearMpcController(Ad, Bd, nx, nu, umin, umax, xmin, xmax, x0, P, q, N)
+        ctrls_ = []
+        for i in range(nsim):
+            ctrl = controller.calc_new_control(x0)
+            x0 = Ad @ x0 + Bd @ ctrl
+            ctrls_.append(ctrl)
+        for i, val in enumerate(ctrls_):
+            assert np.allclose(
+                ctrls_[i], expected_ctrls_[i]
+            ), f"not close {ctrls_[i]} and {expected_ctrls_[i]}"
+
 
 
 if __name__ == "__main__":

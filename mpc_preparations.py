@@ -4,12 +4,9 @@ import scipy as sp
 from scipy import sparse
 
 
-def cast_problem_to_qp(Ad, Q, QN, N, R, xr, nx, nu, Bd, x0, xmin, xmax, umin, umax):
-    P = sparse.block_diag(
-        [sparse.kron(sparse.eye(N), Q), QN, sparse.kron(sparse.eye(N), R)], format="csc"
-    )
-    # - linear objective
-    q = np.hstack([np.kron(np.ones(N), -Q @ xr), -QN @ xr, np.zeros(N * nu)])
+def cast_problem_to_qp(Ad, N, nx, nu, Bd, x0, xmin, xmax, umin, umax):
+
+
     # - linear dynamics
     Ax = sparse.kron(sparse.eye(N + 1), -sparse.eye(nx)) + sparse.kron(
         sparse.eye(N + 1, k=-1), Ad
@@ -26,4 +23,26 @@ def cast_problem_to_qp(Ad, Q, QN, N, R, xr, nx, nu, Bd, x0, xmin, xmax, umin, um
     A = sparse.vstack([Aeq, Aineq], format="csc")
     l = np.hstack([leq, lineq])
     u = np.hstack([ueq, uineq])
-    return P, q, A, l, u
+    return A, l, u
+
+
+class LinearMpcController():
+    def __init__(self, Ad, Bd, nx, nu, umin, umax, xmin, xmax,x0, P, q, N) -> None:
+        self.Ad, self.Bd, self.nx, self.nu, self.umin, self.umax, self.xmin, self.xmax, self.N = Ad, Bd, nx, nu, umin, umax, xmin, xmax, N
+
+
+        # Create an OSQP object
+        self.prob = osqp.OSQP()
+        self.A, self.l, self.u = cast_problem_to_qp(
+            Ad, self.N, nx, nu, Bd, x0, xmin, xmax, umin, umax
+        )
+        # Setup workspace
+        self.prob.setup(P, q, self.A, self.l, self.u)
+    
+    def calc_new_control(self, new_x0):
+        self.l[:self.nx] = -new_x0
+        self.u[:self.nx] = -new_x0
+        self.prob.update(l=self.l, u=self.u)
+        res = self.prob.solve()
+        ctrl = res.x[-self.N * self.nu : -(self.N - 1) * self.nu]
+        return ctrl
