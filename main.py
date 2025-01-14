@@ -50,7 +50,7 @@ def main():
     xr = np.array(int(nx/2)*[1.0, 0.0])
 
     # Prediction horizon
-    N = 20
+    N = 30
 
     P = sparse.block_diag(
         [sparse.kron(sparse.eye(N), Q), QN, sparse.kron(sparse.eye(N), R)], format="csc"
